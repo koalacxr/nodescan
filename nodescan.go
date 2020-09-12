@@ -109,6 +109,52 @@ func (ns *NodeScanner) LocalIPs() []string {
 	return localCIDRs
 }
 
+func (ns *NodeScanner) LocalScan() *IpAttributes {
+	ias := &IpAttributes{
+		Values: make([]IpAttribute, 0),
+	}
+
+	opIPs := ns.LocalIPs()
+	opPorts := ns.getPorts()
+	opNetworkTypes := ns.getNetworkTypes()
+
+	var wg sync.WaitGroup
+	workChannel := make(chan struct{}, ns.maxChannel)
+
+	for _, networkType := range opNetworkTypes {
+		for _, ip := range opIPs {
+			for _, port := range opPorts {
+				wg.Add(1)
+				workChannel <- struct{}{}
+
+				go func(locNetworkType NetworkType, locIP string, locPort int) {
+					defer func() {
+						wg.Done()
+						<-workChannel
+					}()
+
+					if conn, err := net.DialTimeout(string(locNetworkType), fmt.Sprintf("%s:%d", locIP, locPort), ns.timeout); err == nil {
+						_ = conn.Close()
+
+						newIPAttribute := IpAttribute{
+							Network: locNetworkType,
+							IP:      locIP,
+							Port:    locPort,
+						}
+						ias.Lock()
+						ias.Values = append(ias.Values, newIPAttribute)
+						ias.Unlock()
+					}
+				}(networkType, ip, port)
+			}
+		}
+	}
+
+	wg.Wait()
+
+	return ias
+}
+
 func (ns *NodeScanner) Scan() *IpAttributes {
 	ias := &IpAttributes{
 		Values: make([]IpAttribute, 0),

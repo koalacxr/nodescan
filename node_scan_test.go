@@ -48,3 +48,11 @@ func TestNodeScanner_LocalIPs(t *testing.T) {
 		fmt.Println(fmt.Sprintf("%s", locIP))
 	}
 }
+
+func TestNodeScanner_LocalScan(t *testing.T) {
+	newNodeScanner := NewNodeScanner(SetIsLocal(true), SetPorts([]int{80, 443, 3306, 8082}))
+	LocalIPs := newNodeScanner.LocalScan()
+	for _, locIP := range LocalIPs.Values {
+		fmt.Println(fmt.Sprintf("%s:%v", locIP.IP, locIP.Port))
+	}
+}
